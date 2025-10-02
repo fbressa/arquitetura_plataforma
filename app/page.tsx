@@ -138,13 +138,6 @@ export default function Dashboard() {
             >
               <a href="/vendas">Nova Venda</a>
             </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start border-gray-800 text-gray-300 hover:bg-gray-950"
-              asChild
-            >
-              <a href="/estoque">Gerenciar Estoque</a>
-            </Button>
           </CardContent>
         </Card>
       </div>

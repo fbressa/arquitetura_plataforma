@@ -17,10 +17,9 @@ type NavItem = {
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Reembolsos", href: "/reembolsos", icon: Receipt },
-  { name: "Vendas", href: "/vendas", icon: ShoppingCart },
-  { name: "Estoque", href: "/estoque", icon: Package },
   { name: "Clientes", href: "/clientes", icon: Users },
   { name: "Relatórios", href: "/relatorios", icon: BarChart3 },
+  { name: "Membros", href: "/membros", icon: Users },
 ]
 
 interface AppSidebarProps {
@@ -49,10 +48,10 @@ export function AppSidebar({ initialCollapsed = false, onToggle }: AppSidebarPro
       <div className="flex h-16 items-center gap-3 px-4">
         <div className="relative">
           <div className="absolute inset-0 rounded-lg bg-orange-500/20 blur-md" aria-hidden="true" />
-          <Building2 className="relative h-7 w-7 text-orange-500" aria-hidden="true" />
+            <img src="/logo.png" alt="Logo" className="h-10 w-10 rounded-lg"/>
         </div>
         <span className={cn("truncate text-lg font-semibold text-white tracking-wide", collapsed && "hidden")}>
-          ERP System
+          Engnet Plataforma
         </span>
       </div>
 
