@@ -10,23 +10,8 @@ import { useAppContext } from "@/app/context/AppContext"
 import { useSPANavigation } from "@/hooks/use-spa-navigation"
 
 export default function Dashboard() {
-  const { addNotification, userInfo, setUserInfo } = useAppContext()
+  const { addNotification, userInfo } = useAppContext()
   const { navigate } = useSPANavigation()
-
-  const handleWelcomeUser = () => {
-    if (!userInfo) {
-      setUserInfo({
-        id: "1",
-        name: "João Silva", 
-        email: "joao@empresa.com",
-        role: "admin"
-      })
-      addNotification({
-        type: "success",
-        message: "Bem-vindo ao Sistema ERP!"
-      })
-    }
-  }
 
   const handleNavigateToReports = () => {
     navigate("/reembolsos", true)
@@ -39,9 +24,7 @@ export default function Dashboard() {
         description="Visão geral do desempenho da empresa"
         actions={
           <div className="flex gap-2">
-            <Button onClick={handleWelcomeUser}>
-              {userInfo ? `Olá, ${userInfo.name}` : "Login"}
-            </Button>
+            <span className="text-white">Olá, {userInfo?.name || 'Visitante'}</span>
             <Button className="bg-orange-500 hover:bg-orange-600">Nova Transação</Button>
           </div>
         }

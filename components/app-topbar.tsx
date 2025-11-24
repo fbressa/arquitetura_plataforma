@@ -1,9 +1,11 @@
 "use client"
 
-import { Menu, Search, Bell } from 'lucide-react'
+import { Menu, Search, Bell, LogOut } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAppContext } from "@/app/context/AppContext"
+import { useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +20,21 @@ interface AppTopbarProps {
 }
 
 export function AppTopbar({ onOpenSidebar }: AppTopbarProps) {
+  const { userInfo, logout } = useAppContext()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    logout()
+    router.push("/login")
+  }
+
+  // Gera iniciais do nome
+  const initials = userInfo?.name
+    ?.split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "?"
+
   return (
     <header className="sticky top-0 z-40 border-b border-gray-800 bg-black/70 backdrop-blur supports-[backdrop-filter]:bg-black/50">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4">
@@ -54,18 +71,24 @@ export function AppTopbar({ onOpenSidebar }: AppTopbarProps) {
               <button className="flex items-center gap-2 rounded-md border border-gray-800 bg-gray-950 px-2 py-1 text-left text-sm text-gray-200 hover:bg-gray-900">
                 <Avatar className="h-7 w-7">
                   <AvatarImage src="/diverse-user-avatars.png" alt="Usuário" />
-                  <AvatarFallback className="bg-orange-500">JS</AvatarFallback>
+                  <AvatarFallback className="bg-orange-500">{initials}</AvatarFallback>
                 </Avatar>
-                <span className="hidden md:block">João Silva</span>
+                <span className="hidden md:block">{userInfo?.name || "Usuário"}</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-52 border-gray-800 bg-black text-gray-200">
-              <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+              <DropdownMenuLabel>{userInfo?.email || "Minha Conta"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="focus:bg-gray-900">Perfil</DropdownMenuItem>
               <DropdownMenuItem className="focus:bg-gray-900">Configurações</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-400 focus:bg-red-500/10">Sair</DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-400 focus:bg-red-500/10 cursor-pointer"
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -1,12 +1,12 @@
   "use client"
 
-  import React, { createContext, useState, useContext, ReactNode } from 'react';
+  import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
   interface User {
     id: string;
     name: string;
     email: string;
-    role: string;
+    role?: string;
   }
 
   interface Notification {
@@ -23,6 +23,8 @@
     
     token: string | null;
     setToken: (token: string | null) => void;
+    isAuthenticated: boolean;
+    logout: () => void;
 
     // Estado de notificações
     notifications: Notification[];
@@ -46,6 +48,62 @@
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [isHydrated, setIsHydrated] = useState(false);
+
+    // Recuperar token e user do localStorage ao carregar
+    useEffect(() => {
+      // Só executa no navegador, não no servidor
+      if (typeof window === 'undefined') return;
+
+      try {
+        const savedToken = localStorage.getItem('auth_token');
+        const savedUser = localStorage.getItem('auth_user');
+        
+        if (savedToken) {
+          setToken(savedToken);
+        }
+        if (savedUser) {
+          setUserInfo(JSON.parse(savedUser));
+        }
+      } catch (error) {
+        console.error('Erro ao recuperar dados do localStorage:', error);
+      }
+      setIsHydrated(true);
+    }, []);
+
+    // Persistir token ao mudar
+    const handleSetToken = (newToken: string | null) => {
+      setToken(newToken);
+      if (typeof window !== 'undefined') {
+        if (newToken) {
+          localStorage.setItem('auth_token', newToken);
+        } else {
+          localStorage.removeItem('auth_token');
+        }
+      }
+    };
+
+    // Persistir user ao mudar
+    const handleSetUserInfo = (newUser: User | null) => {
+      setUserInfo(newUser);
+      if (typeof window !== 'undefined') {
+        if (newUser) {
+          localStorage.setItem('auth_user', JSON.stringify(newUser));
+        } else {
+          localStorage.removeItem('auth_user');
+        }
+      }
+    };
+
+    // Logout
+    const logout = () => {
+      setToken(null);
+      setUserInfo(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+      }
+    };
 
     const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
       const newNotification: Notification = {
@@ -68,9 +126,11 @@
     return (
       <AppContext.Provider value={{
         userInfo,
-        setUserInfo,
+        setUserInfo: handleSetUserInfo,
         token,
-        setToken,
+        setToken: handleSetToken,
+        isAuthenticated: !!token,
+        logout,
         notifications,
         addNotification,
         removeNotification,
@@ -79,7 +139,7 @@
         isSidebarOpen,
         setSidebarOpen,
       }}>
-        {children}
+        {isHydrated && children}
       </AppContext.Provider>
     );
   };
