@@ -8,7 +8,7 @@
           "nixPkgs": ["nodejs_22"]
         },
         "install": {
-          "cmds": ["npm ci"]
+          "cmds": ["npm ci --legacy-peer-deps"]
         },
         "build": {
           "cmds": ["npm run build"]
