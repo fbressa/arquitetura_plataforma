@@ -18,6 +18,7 @@ export interface DashboardSummary {
     totalClients: number;
     totalWithRefunds: number;
     totalWithoutRefunds: number;
+    closedContracts: number;
   };
   generatedAt: string;
 }

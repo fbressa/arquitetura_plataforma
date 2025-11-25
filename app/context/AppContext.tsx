@@ -49,6 +49,7 @@
     const [isLoading, setIsLoading] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isHydrated, setIsHydrated] = useState(false);
+    const [notificationCounter, setNotificationCounter] = useState(0);
 
     // Recuperar token e user do localStorage ao carregar
     useEffect(() => {
@@ -106,9 +107,10 @@
     };
 
     const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+      setNotificationCounter(prev => prev + 1);
       const newNotification: Notification = {
         ...notification,
-        id: Date.now().toString(),
+        id: `${Date.now()}-${notificationCounter}`,
         timestamp: new Date(),
       };
       setNotifications(prev => [...prev, newNotification]);
