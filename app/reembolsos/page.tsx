@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Filter, Check, X, Eye } from 'lucide-react'
+import { Plus, Search, Filter, Check, X, Eye, Calendar, User, DollarSign } from 'lucide-react'
 import { PageHeader } from "@/components/page-header"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,6 +15,14 @@ import { useAppContext } from "@/app/context/AppContext"
 import { useSPANavigation } from "@/hooks/use-spa-navigation"
 import { getRefundsRequest, updateRefundRequest } from "@/lib/api"
 import { Refund } from "@/lib/types/refund"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 export default function ReembolsosPage() {
   const { addNotification, userInfo } = useAppContext()
@@ -23,6 +31,8 @@ export default function ReembolsosPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("todas")
+  const [selectedRefund, setSelectedRefund] = useState<Refund | null>(null)
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
 
   useEffect(() => {
     loadRefunds()
@@ -96,6 +106,11 @@ export default function ReembolsosPage() {
       REJECTED: 'Rejeitado'
     }
     return labels[status as keyof typeof labels] || status
+  }
+
+  const handleViewDetails = (refund: Refund) => {
+    setSelectedRefund(refund)
+    setIsDetailDialogOpen(true)
   }
 
   if (loading) {
@@ -197,6 +212,15 @@ export default function ReembolsosPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                                    onClick={() => handleViewDetails(refund)}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    Ver
+                                  </Button>
                                   {refund.status === "PENDING" && (
                                     <>
                                       <Button 
@@ -217,16 +241,6 @@ export default function ReembolsosPage() {
                                       </Button>
                                     </>
                                   )}
-                                  {refund.status !== "PENDING" && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                                    >
-                                      <Eye className="h-3 w-3 mr-1" />
-                                      Ver
-                                    </Button>
-                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -245,6 +259,120 @@ export default function ReembolsosPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog de Detalhes do Reembolso */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Detalhes do Reembolso</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Informações completas sobre a solicitação de reembolso
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRefund && (
+            <div className="space-y-6 py-4">
+              {/* ID e Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">ID da Solicitação</Label>
+                  <p className="text-white font-mono text-xs bg-gray-950 p-2 rounded border border-gray-800">
+                    {selectedRefund.id}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">Status</Label>
+                  <div className="flex items-center h-full">
+                    <StatusBadge status={getStatusLabel(selectedRefund.status) as any} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Descrição
+                </Label>
+                <p className="text-white bg-gray-950 p-3 rounded border border-gray-800">
+                  {selectedRefund.description}
+                </p>
+              </div>
+
+              {/* Valor */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Valor
+                </Label>
+                <p className="text-2xl font-bold text-green-400">
+                  {formatCurrency(selectedRefund.amount)}
+                </p>
+              </div>
+
+              {/* Funcionário */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Funcionário
+                </Label>
+                <p className="text-white bg-gray-950 p-3 rounded border border-gray-800">
+                  {selectedRefund.user?.name || 'Usuário não encontrado'}
+                  <span className="text-gray-500 ml-2">({selectedRefund.user?.email || 'N/A'})</span>
+                </p>
+              </div>
+
+              {/* Datas */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Data de Criação
+                  </Label>
+                  <p className="text-white bg-gray-950 p-3 rounded border border-gray-800">
+                    {formatDate(selectedRefund.createdAt)}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Última Atualização
+                  </Label>
+                  <p className="text-white bg-gray-950 p-3 rounded border border-gray-800">
+                    {formatDate(selectedRefund.updatedAt)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Ações no Dialog */}
+              {selectedRefund.status === "PENDING" && (
+                <div className="flex gap-3 pt-4 border-t border-gray-800">
+                  <Button 
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => {
+                      handleUpdateStatus(selectedRefund.id, 'APPROVED')
+                      setIsDetailDialogOpen(false)
+                    }}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Aprovar Reembolso
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    onClick={() => {
+                      handleUpdateStatus(selectedRefund.id, 'REJECTED')
+                      setIsDetailDialogOpen(false)
+                    }}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Rejeitar Reembolso
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

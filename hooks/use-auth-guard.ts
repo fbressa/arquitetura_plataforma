@@ -16,13 +16,13 @@ export function useAuthGuard() {
 
     // Se está em rota pública e está autenticado, redirecionar para home
     if (isPublicRoute && isAuthenticated) {
-      router.push('/')
+      window.location.href = '/'
       return
     }
 
     // Se não está em rota pública e não está autenticado, redirecionar para login
     if (!isPublicRoute && !isAuthenticated) {
-      router.push('/login')
+      window.location.href = '/login'
       return
     }
   }, [isAuthenticated, pathname, router, token])

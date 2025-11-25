@@ -15,6 +15,7 @@ import { getRefundsReportRequest } from "@/lib/api"
 import { RefundReport } from "@/lib/types/dashboard"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import * as XLSX from 'xlsx'
 
 export default function RelatoriosPage() {
   const { addNotification } = useAppContext()
@@ -48,36 +49,54 @@ export default function RelatoriosPage() {
     }
   }
 
+  const getStatusLabel = (status: string) => {
+    const labels = {
+      PENDING: 'Pendente',
+      APPROVED: 'Aprovado',
+      REJECTED: 'Rejeitado'
+    }
+    return labels[status as keyof typeof labels] || status
+  }
+
   const handleExport = () => {
-    const csv = generateCSV(filteredReports)
-    downloadCSV(csv, 'relatorio-reembolsos.csv')
-    addNotification({ type: 'success', message: 'Relatório exportado com sucesso!' })
+    exportToExcel(filteredReports)
+    addNotification({ type: 'success', message: 'Relatório Excel exportado com sucesso!' })
   }
 
-  const generateCSV = (data: RefundReport[]) => {
-    const headers = ['ID', 'Descrição', 'Valor', 'Status', 'Data de Criação', 'Dias desde Criação']
-    const rows = data.map(report => [
-      report.id,
-      report.description,
-      report.amount.toString(),
-      report.status,
-      new Date(report.createdAt).toLocaleDateString('pt-BR'),
-      report.daysSinceCreation.toString()
-    ])
+  const exportToExcel = (data: RefundReport[]) => {
+    // Preparar os dados para o Excel
+    const excelData = data.map(report => ({
+      'ID': report.id,
+      'Descrição': report.description,
+      'Valor (R$)': report.amount,
+      'Status': getStatusLabel(report.status),
+      'Data de Criação': new Date(report.createdAt).toLocaleDateString('pt-BR'),
+      'Dias desde Criação': report.daysSinceCreation,
+      'Última Atualização': new Date(report.updatedAt).toLocaleDateString('pt-BR')
+    }))
+
+    // Criar uma nova planilha
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
     
-    return [headers, ...rows].map(row => row.join(',')).join('\n')
-  }
+    // Definir largura das colunas
+    const columnWidths = [
+      { wch: 38 }, // ID
+      { wch: 40 }, // Descrição
+      { wch: 15 }, // Valor
+      { wch: 15 }, // Status
+      { wch: 18 }, // Data de Criação
+      { wch: 20 }, // Dias desde Criação
+      { wch: 20 }  // Última Atualização
+    ]
+    worksheet['!cols'] = columnWidths
 
-  const downloadCSV = (csv: string, filename: string) => {
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    // Criar um novo workbook e adicionar a planilha
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Reembolsos')
+
+    // Gerar o arquivo Excel e fazer download
+    const timestamp = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(workbook, `relatorio-reembolsos-${timestamp}.xlsx`)
   }
 
   const filteredReports = reports.filter(report => {
@@ -97,15 +116,6 @@ export default function RelatoriosPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR')
-  }
-
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      PENDING: 'Pendente',
-      APPROVED: 'Aprovado',
-      REJECTED: 'Rejeitado'
-    }
-    return labels[status as keyof typeof labels] || status
   }
 
   const getStatusBadgeClass = (status: string) => {
@@ -129,6 +139,7 @@ export default function RelatoriosPage() {
       </DashboardLayout>
     )
   }
+
   return (
     <DashboardLayout>
       <PageHeader
@@ -137,12 +148,12 @@ export default function RelatoriosPage() {
         actions={
           <div className="flex gap-2">
             <Button 
-              className="bg-orange-500 hover:bg-orange-600"
+              className="bg-green-600 hover:bg-green-700"
               onClick={handleExport}
               disabled={filteredReports.length === 0}
             >
               <Download className="mr-2 h-4 w-4" />
-              Exportar CSV
+              Exportar Excel
             </Button>
           </div>
         }
@@ -312,8 +323,8 @@ export default function RelatoriosPage() {
                     <TableCell className="text-gray-300">{formatDate(report.createdAt)}</TableCell>
                     <TableCell className="text-gray-300">{report.daysSinceCreation} dias</TableCell>
                   </TableRow>
-                
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -102,7 +102,7 @@ export default function MembrosPage() {
       toast.success("Usuário criado com sucesso!")
       setIsCreateDialogOpen(false)
       setFormData({ name: "", email: "", password: "" })
-      loadUsers()
+      await loadUsers()
     } catch (error: any) {
       console.error("Erro ao criar usuário:", error)
       toast.error(error.message || "Erro ao criar usuário")
@@ -139,7 +139,7 @@ export default function MembrosPage() {
       setIsEditDialogOpen(false)
       setSelectedUser(null)
       setEditFormData({ name: "", email: "", password: "" })
-      loadUsers()
+      await loadUsers()
     } catch (error: any) {
       console.error("Erro ao atualizar usuário:", error)
       toast.error(error.message || "Erro ao atualizar usuário")
@@ -160,7 +160,7 @@ export default function MembrosPage() {
       toast.success("Usuário deletado com sucesso!")
       setIsDeleteDialogOpen(false)
       setSelectedUser(null)
-      loadUsers()
+      await loadUsers()
     } catch (error: any) {
       console.error("Erro ao deletar usuário:", error)
       toast.error(error.message || "Erro ao deletar usuário")

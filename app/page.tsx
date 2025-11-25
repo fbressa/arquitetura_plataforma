@@ -24,6 +24,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (isAuthenticated && token) {
       loadDashboardData()
+    } else if (!isAuthenticated) {
+      setLoading(false)
     }
   }, [isAuthenticated, token])
 
@@ -85,6 +87,11 @@ export default function Dashboard() {
     return configs[status as keyof typeof configs] || configs.PENDING
   }
 
+  // Não renderizar nada se não estiver autenticado (aguardando redirecionamento)
+  if (!isAuthenticated) {
+    return null
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -114,14 +121,14 @@ export default function Dashboard() {
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-300">Total de Reembolsos</CardTitle>
-              <Receipt className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-sm font-medium text-gray-300">Receita Total</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">{dashboardData?.refunds.totalRefunds || 0}</div>
+            <div className="text-2xl font-semibold text-white">{formatCurrency(dashboardData?.refunds.totalAmount || 0)}</div>
             <p className="mt-1 flex items-center text-xs text-gray-400">
-              {formatCurrency(dashboardData?.refunds.totalAmount || 0)} total
+              {dashboardData?.refunds.totalRefunds || 0} reembolsos
             </p>
           </CardContent>
         </Card>
@@ -144,7 +151,7 @@ export default function Dashboard() {
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-300">Usuários Ativos</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Membros Ativos</CardTitle>
               <Users className="h-4 w-4 text-orange-500" />
             </div>
           </CardHeader>
@@ -159,15 +166,15 @@ export default function Dashboard() {
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-300">Clientes Cadastrados</CardTitle>
-              <Package className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-sm font-medium text-gray-300">Contratos Fechados</CardTitle>
+              <Package className="h-4 w-4 text-green-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">{dashboardData?.clients.totalClients || 0}</div>
+            <div className="text-2xl font-semibold text-white">{dashboardData?.clients.closedContracts || 0}</div>
             <p className="mt-1 flex items-center text-xs text-green-400">
               <ArrowUp className="mr-1 h-3 w-3" />
-              Cadastros ativos
+              Clientes com CNPJ
             </p>
           </CardContent>
         </Card>
