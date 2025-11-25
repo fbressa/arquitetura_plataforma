@@ -5,19 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, X } from 'lucide-react'
 import { useMemo, useState } from "react"
 import { PageHeader } from "@/components/page-header"
 import { CurrencyInput } from "@/components/currency-input"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
+import { useAppContext } from "@/app/context/AppContext"
+import { useSPANavigation } from "@/hooks/use-spa-navigation"
+import { createRefundRequest } from "@/lib/api"
 
 export default function NovoReembolsoPage() {
+  const { addNotification, userInfo } = useAppContext()
+  const { navigate } = useSPANavigation()
   const [anexos, setAnexos] = useState<string[]>([])
   const [valor, setValor] = useState<number>(0)
-  const [categoria, setCategoria] = useState<string>("combustivel")
-  const { toast } = useToast()
+  const [descricao, setDescricao] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const totalFormatado = useMemo(
     () =>
@@ -32,12 +35,70 @@ export default function NovoReembolsoPage() {
   const adicionarAnexo = () => setAnexos((prev) => [...prev, `Comprovante-${prev.length + 1}.pdf`])
   const removerAnexo = (index: number) => setAnexos((prev) => prev.filter((_, i) => i !== index))
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast({
-      title: "Solicitação enviada",
-      description: "Sua solicitação de reembolso foi enviada para aprovação.",
-    })
+    
+    if (!userInfo?.id) {
+      addNotification({ type: 'error', message: 'Usuário não autenticado' })
+      navigate('/login', true)
+      return
+    }
+
+    if (!descricao.trim()) {
+      addNotification({ type: 'error', message: 'Descrição é obrigatória' })
+      return
+    }
+
+    if (!valor || valor <= 0) {
+      addNotification({ type: 'error', message: 'Valor deve ser maior que zero' })
+      return
+    }
+
+    if (isNaN(valor)) {
+      addNotification({ type: 'error', message: 'Valor inválido' })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      const refundData = {
+        description: String(descricao).trim(),
+        amount: Number(valor),
+        userId: String(userInfo.id)
+      }
+
+      console.log('=== REFUND DATA DEBUG ===')
+      console.log('Raw values:', { descricao, valor, userId: userInfo.id })
+      console.log('Processed data:', refundData)
+      console.log('Types:', {
+        description: typeof refundData.description,
+        amount: typeof refundData.amount,
+        userId: typeof refundData.userId
+      })
+      console.log('JSON to send:', JSON.stringify(refundData))
+      console.log('========================')
+
+      await createRefundRequest(token, refundData)
+
+      addNotification({ 
+        type: 'success', 
+        message: 'Solicitação de reembolso criada com sucesso!' 
+      })
+      navigate('/reembolsos', true)
+    } catch (error: any) {
+      addNotification({ 
+        type: 'error', 
+        message: error.message || 'Erro ao criar solicitação de reembolso' 
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -70,41 +131,14 @@ export default function NovoReembolsoPage() {
                   </Label>
                   <Input
                     id="funcionario"
-                    defaultValue="João Silva"
+                    value={userInfo?.name || 'Carregando...'}
                     className="border-gray-800 bg-gray-950 text-white"
                     disabled
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="data" className="text-gray-300">
-                    Data da Despesa
-                  </Label>
-                  <Input id="data" type="date" className="border-gray-800 bg-gray-950 text-white" required />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="categoria" className="text-gray-300">
-                    Categoria
-                  </Label>
-                  <Select defaultValue={categoria} onValueChange={setCategoria}>
-                    <SelectTrigger className="border-gray-800 bg-gray-950 text-white">
-                      <SelectValue placeholder="Selecione uma categoria" />
-                    </SelectTrigger>
-                    <SelectContent className="border-gray-800 bg-black text-gray-200">
-                      <SelectItem value="combustivel">Combustível</SelectItem>
-                      <SelectItem value="alimentacao">Alimentação</SelectItem>
-                      <SelectItem value="transporte">Transporte</SelectItem>
-                      <SelectItem value="hospedagem">Hospedagem</SelectItem>
-                      <SelectItem value="material">Material de Escritório</SelectItem>
-                      <SelectItem value="outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="valor" className="text-gray-300">
-                    Valor (R$)
+                    Valor (R$) *
                   </Label>
                   <CurrencyInput
                     id="valor"
@@ -118,24 +152,15 @@ export default function NovoReembolsoPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="descricao" className="text-gray-300">
-                  Descrição
+                  Descrição *
                 </Label>
                 <Textarea
                   id="descricao"
                   placeholder="Descreva o motivo da despesa..."
                   className="min-h-[100px] border-gray-800 bg-gray-950 text-white"
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
                   required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="justificativa" className="text-gray-300">
-                  Justificativa Comercial
-                </Label>
-                <Textarea
-                  id="justificativa"
-                  placeholder="Explique como esta despesa beneficia a empresa..."
-                  className="min-h-[80px] border-gray-800 bg-gray-950 text-white"
                 />
               </div>
             </CardContent>
@@ -191,27 +216,32 @@ export default function NovoReembolsoPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Status</span>
-                <span className="text-yellow-400">Rascunho</span>
+                <span className="text-yellow-400">Novo</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Categoria</span>
-                <span className="text-white capitalize">{categoria}</span>
+                <span className="text-gray-400">Solicitante</span>
+                <span className="text-white">{userInfo?.name || '-'}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Valor Total</span>
                 <span className="font-medium text-white">{totalFormatado}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Anexos</span>
-                <span className="text-white">{anexos.length}</span>
-              </div>
               <div className="pt-2">
-                <Button className="w-full bg-orange-500 text-white hover:bg-orange-600" type="submit">
-                  Enviar Solicitação
+                <Button 
+                  className="w-full bg-orange-500 text-white hover:bg-orange-600" 
+                  type="submit"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
                 </Button>
               </div>
-              <Button variant="outline" className="w-full border-gray-800 text-gray-300 hover:bg-gray-950" type="button">
-                Salvar Rascunho
+              <Button 
+                variant="outline" 
+                className="w-full border-gray-800 text-gray-300 hover:bg-gray-950" 
+                type="button"
+                onClick={() => navigate('/reembolsos', true)}
+              >
+                Cancelar
               </Button>
             </CardContent>
           </Card>

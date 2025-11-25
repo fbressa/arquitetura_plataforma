@@ -66,7 +66,7 @@ export default function LoginPage() {
         throw new Error("Resposta inválida do servidor");
       }
 
-      // Salvar autenticação
+      // Salvar autenticação no contexto (que automaticamente salva no localStorage)
       setToken(response.access_token);
       setUserInfo({
         id: response.user.id.toString(),
@@ -81,8 +81,11 @@ export default function LoginPage() {
         message: `Bem-vindo, ${response.user.name}!`,
       });
 
-      // Redirecionar
-      router.push("/");
+      // Pequeno delay para garantir que o localStorage foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Redirecionar forçando reload completo
+      window.location.href = "/";
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       setError(errorMessage);

@@ -56,8 +56,8 @@
       if (typeof window === 'undefined') return;
 
       try {
-        const savedToken = localStorage.getItem('auth_token');
-        const savedUser = localStorage.getItem('auth_user');
+        const savedToken = localStorage.getItem('token');
+        const savedUser = localStorage.getItem('user');
         
         if (savedToken) {
           setToken(savedToken);
@@ -76,9 +76,9 @@
       setToken(newToken);
       if (typeof window !== 'undefined') {
         if (newToken) {
-          localStorage.setItem('auth_token', newToken);
+          localStorage.setItem('token', newToken);
         } else {
-          localStorage.removeItem('auth_token');
+          localStorage.removeItem('token');
         }
       }
     };
@@ -88,9 +88,9 @@
       setUserInfo(newUser);
       if (typeof window !== 'undefined') {
         if (newUser) {
-          localStorage.setItem('auth_user', JSON.stringify(newUser));
+          localStorage.setItem('user', JSON.stringify(newUser));
         } else {
-          localStorage.removeItem('auth_user');
+          localStorage.removeItem('user');
         }
       }
     };
@@ -100,8 +100,8 @@
       setToken(null);
       setUserInfo(null);
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
     };
 

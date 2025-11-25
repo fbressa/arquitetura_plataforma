@@ -1,33 +1,185 @@
 "use client"
 
-// Imports para construir a interface de gestão de clientes
+import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PageHeader } from "@/components/page-header"
-// Ícones específicos para métricas de clientes - cada um representa um aspecto diferente
-import { ArrowUp, ArrowDown, Users, UserPlus, Star, MapPin } from 'lucide-react'
+import { Users, UserPlus, Star, MapPin, Pencil, Trash2 } from 'lucide-react'
+import { useAppContext } from "@/app/context/AppContext"
+import { useSPANavigation } from "@/hooks/use-spa-navigation"
+import {
+  getClientsRequest,
+  createClientRequest,
+  updateClientRequest,
+  deleteClientRequest,
+} from "@/lib/api"
+import { Client, CreateClientRequest } from "@/lib/types/client"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 export default function ClientesPage() {
+  const { addNotification } = useAppContext()
+  const { navigate } = useSPANavigation()
+  const [clients, setClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [formData, setFormData] = useState<CreateClientRequest>({
+    companyName: "",
+    contactPerson: "",
+    cnpj: "",
+  })
+
+  useEffect(() => {
+    loadClients()
+  }, [])
+
+  const loadClients = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      const data = await getClientsRequest(token)
+      setClients(data)
+      setLoading(false)
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao carregar clientes' })
+      setLoading(false)
+    }
+  }
+
+  const handleOpenDialog = (client?: Client) => {
+    if (client) {
+      setEditingClient(client)
+      setFormData({
+        companyName: client.companyName,
+        contactPerson: client.contactPerson,
+        cnpj: client.cnpj || "",
+      })
+    } else {
+      setEditingClient(null)
+      setFormData({
+        companyName: "",
+        contactPerson: "",
+        cnpj: "",
+      })
+    }
+    setIsDialogOpen(true)
+  }
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false)
+    setEditingClient(null)
+    setFormData({
+      companyName: "",
+      contactPerson: "",
+      cnpj: "",
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      if (editingClient) {
+        await updateClientRequest(token, editingClient.id, formData)
+        addNotification({ type: 'success', message: 'Cliente atualizado com sucesso!' })
+      } else {
+        await createClientRequest(token, formData)
+        addNotification({ type: 'success', message: 'Cliente criado com sucesso!' })
+      }
+
+      handleCloseDialog()
+      loadClients()
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao salvar cliente' })
+    }
+  }
+
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!clientToDelete) return
+
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      await deleteClientRequest(token, clientToDelete.id)
+      addNotification({ type: 'success', message: 'Cliente deletado com sucesso!' })
+      setIsDeleteDialogOpen(false)
+      setClientToDelete(null)
+      loadClients()
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao deletar cliente' })
+    }
+  }
+
+  const filteredClients = clients.filter(client =>
+    client.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.cnpj && client.cnpj.includes(searchTerm))
+  )
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR')
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-400">Carregando clientes...</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
   return (
-    // Layout compartilhado com sidebar e estrutura padrão
     <DashboardLayout>
-      {/* Cabeçalho específico da seção de clientes */}
       <PageHeader
         title="Clientes"
         description="Gerencie e acompanhe todos os clientes"
         actions={
           <div className="flex gap-2">
-            <Button className="bg-orange-500 hover:bg-orange-600">Novo Cliente</Button>
+            <Button 
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => handleOpenDialog()}
+            >
+              Novo Cliente
+            </Button>
           </div>
         }
         breadcrumbs={[{ label: "Início", href: "/" }, { label: "Clientes" }]}
       />
 
-      {/* Dashboard com os números principais da base de clientes */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
@@ -37,10 +189,9 @@ export default function ClientesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">847</div>
-            <p className="mt-1 flex items-center text-xs text-green-400">
-              <ArrowUp className="mr-1 h-3 w-3" />
-              +12 novos este mês
+            <div className="text-2xl font-semibold text-white">{clients.length}</div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              Clientes cadastrados
             </p>
           </CardContent>
         </Card>
@@ -48,15 +199,16 @@ export default function ClientesPage() {
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-300">Clientes Ativos</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Com CNPJ</CardTitle>
               <UserPlus className="h-4 w-4 text-orange-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">523</div>
-            <p className="mt-1 flex items-center text-xs text-green-400">
-              <ArrowUp className="mr-1 h-3 w-3" />
-              +8% desde ontem
+            <div className="text-2xl font-semibold text-white">
+              {clients.filter(c => c.cnpj).length}
+            </div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              Empresas registradas
             </p>
           </CardContent>
         </Card>
@@ -64,15 +216,16 @@ export default function ClientesPage() {
         <Card className="border-gray-800 bg-black">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-300">Clientes VIP</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-300">Sem CNPJ</CardTitle>
               <Star className="h-4 w-4 text-orange-500" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">67</div>
-            <p className="mt-1 flex items-center text-xs text-blue-400">
-              <ArrowUp className="mr-1 h-3 w-3" />
-              +3 este mês
+            <div className="text-2xl font-semibold text-white">
+              {clients.filter(c => !c.cnpj).length}
+            </div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              Clientes pessoa física
             </p>
           </CardContent>
         </Card>
@@ -85,94 +238,175 @@ export default function ClientesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-white">4</div>
-            <p className="mt-1 flex items-center text-xs text-green-400">
-              <ArrowUp className="mr-1 h-3 w-3" />
-              +2 que ontem
+            <div className="text-2xl font-semibold text-white">
+              {clients.filter(c => {
+                const today = new Date().toDateString()
+                return new Date(c.createdAt).toDateString() === today
+              }).length}
+            </div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              Cadastrados hoje
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Diretório completo de clientes com informações de contato e histórico */}
       <Card className="border-gray-800 bg-black">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-white">Lista de Clientes</CardTitle>
-            {/* Ferramentas de busca para encontrar clientes rapidamente */}
             <div className="flex gap-2">
               <Input
                 placeholder="Buscar clientes..."
                 className="w-64 bg-gray-900 border-gray-800 text-white placeholder:text-gray-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <Button className="bg-orange-500 hover:bg-orange-600">
-                Filtrar
-              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Estrutura da tabela com todas as informações relevantes */}
           <Table>
             <TableHeader>
               <TableRow className="border-gray-800">
-                <TableHead className="text-gray-300">ID</TableHead>
-                <TableHead className="text-gray-300">Nome</TableHead>
-                <TableHead className="text-gray-300">Email</TableHead>
-                <TableHead className="text-gray-300">Telefone</TableHead>
-                <TableHead className="text-gray-300">Total Compras</TableHead>
-                <TableHead className="text-gray-300">Status</TableHead>
+                <TableHead className="text-gray-300">Empresa</TableHead>
+                <TableHead className="text-gray-300">Responsável</TableHead>
+                <TableHead className="text-gray-300">CNPJ</TableHead>
+                <TableHead className="text-gray-300">Cadastrado em</TableHead>
                 <TableHead className="text-gray-300">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {/* Dados de exemplo dos clientes - normalmente viriam de uma API */}
-              {[
-                { id: "CLI001", nome: "João Silva", email: "joao@email.com", telefone: "(11) 99999-1111", total: "R$ 15.200,00", status: "VIP" },
-                { id: "CLI002", nome: "Maria Santos", email: "maria@email.com", telefone: "(11) 99999-2222", total: "R$ 8.450,00", status: "Ativo" },
-                { id: "CLI003", nome: "Pedro Costa", email: "pedro@email.com", telefone: "(11) 99999-3333", total: "R$ 3.200,00", status: "Ativo" },
-                { id: "CLI004", nome: "Ana Lima", email: "ana@email.com", telefone: "(11) 99999-4444", total: "R$ 890,00", status: "Novo" },
-                { id: "CLI005", nome: "Carlos Oliveira", email: "carlos@email.com", telefone: "(11) 99999-5555", total: "R$ 0,00", status: "Inativo" },
-                { id: "CLI006", nome: "Fernanda Rocha", email: "fernanda@email.com", telefone: "(11) 99999-6666", total: "R$ 22.100,00", status: "VIP" },
-                { id: "CLI007", nome: "Roberto Alves", email: "roberto@email.com", telefone: "(11) 99999-7777", total: "R$ 5.670,00", status: "Ativo" },
-              ].map((cliente) => (
-                <TableRow key={cliente.id} className="border-gray-800 hover:bg-gray-900">
-                  <TableCell className="text-white font-medium">{cliente.id}</TableCell>
-                  <TableCell className="text-white">{cliente.nome}</TableCell>
-                  <TableCell className="text-gray-300">{cliente.email}</TableCell>
-                  <TableCell className="text-gray-300">{cliente.telefone}</TableCell>
-                  <TableCell className="text-white font-medium">{cliente.total}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      className={
-                        cliente.status === "VIP" 
-                          ? "bg-purple-500/15 text-purple-400 border-purple-500/20" 
-                          : cliente.status === "Ativo"
-                          ? "bg-green-500/15 text-green-400 border-green-500/20"
-                          : cliente.status === "Novo"
-                          ? "bg-blue-500/15 text-blue-400 border-blue-500/20"
-                          : "bg-red-500/15 text-red-400 border-red-500/20"
-                      }
-                    >
-                      {cliente.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800">
-                        Ver
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800">
-                        Editar
-                      </Button>
-                    </div>
+              {filteredClients.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                    {searchTerm ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredClients.map((client) => (
+                  <TableRow key={client.id} className="border-gray-800 hover:bg-gray-900">
+                    <TableCell className="text-white font-medium">{client.companyName}</TableCell>
+                    <TableCell className="text-gray-300">{client.contactPerson}</TableCell>
+                    <TableCell className="text-gray-300">
+                      {client.cnpj || <span className="text-gray-600 italic">Não informado</span>}
+                    </TableCell>
+                    <TableCell className="text-gray-300">{formatDate(client.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                          onClick={() => handleOpenDialog(client)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-red-700 text-red-400 hover:bg-red-950"
+                          onClick={() => handleDeleteClick(client)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog para Criar/Editar Cliente */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle>{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              {editingClient ? 'Atualize as informações do cliente' : 'Preencha os dados do novo cliente'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="companyName">Nome da Empresa *</Label>
+                <Input
+                  id="companyName"
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  className="bg-gray-950 border-gray-800 text-white"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="contactPerson">Pessoa de Contato *</Label>
+                <Input
+                  id="contactPerson"
+                  value={formData.contactPerson}
+                  onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                  className="bg-gray-950 border-gray-800 text-white"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="cnpj">CNPJ (Opcional)</Label>
+                <Input
+                  id="cnpj"
+                  value={formData.cnpj}
+                  onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                  className="bg-gray-950 border-gray-800 text-white"
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseDialog}
+                className="border-gray-700 text-gray-300"
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" className="bg-orange-500 hover:bg-orange-600">
+                {editingClient ? 'Atualizar' : 'Criar'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Confirmação de Exclusão */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Tem certeza que deseja excluir o cliente <strong>{clientToDelete?.companyName}</strong>? 
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="border-gray-700 text-gray-300"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
