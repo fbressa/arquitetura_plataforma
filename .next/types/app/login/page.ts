@@ -1,8 +1,8 @@
-// File: C:\Users\gunba\OneDrive\Documentos\engNet\Desafio-4-2025.2\arquitetura_plataforma\app\reembolsos\page.tsx
-import * as entry from '../../../../app/reembolsos/page.js'
+// File: C:\Users\gunba\OneDrive\Documentos\engNet\Desafio-4-2025.2\arquitetura_plataforma\app\login\page.tsx
+import * as entry from '../../../../app/login/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../app/reembolsos/page.js')
+type TEntry = typeof import('../../../../app/login/page.js')
 
 type SegmentParams<T extends Object = any> = T extends Record<string, any>
   ? { [K in keyof T]: T[K] extends string ? string | string[] | undefined : never }
