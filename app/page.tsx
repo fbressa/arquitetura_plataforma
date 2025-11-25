@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,13 +9,90 @@ import { ArrowDown, ArrowUp, DollarSign, Package, Receipt, Users } from 'lucide-
 import { PageHeader } from "@/components/page-header"
 import { useAppContext } from "@/app/context/AppContext"
 import { useSPANavigation } from "@/hooks/use-spa-navigation"
+import { useAuthGuard } from "@/hooks/use-auth-guard"
+import { getDashboardSummaryRequest, getRefundsReportRequest } from "@/lib/api"
+import { DashboardSummary, RefundReport } from "@/lib/types/dashboard"
 
 export default function Dashboard() {
-  const { addNotification, userInfo } = useAppContext()
+  const { addNotification, userInfo, token } = useAppContext()
   const { navigate } = useSPANavigation()
+  const { isAuthenticated } = useAuthGuard()
+  const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null)
+  const [recentRefunds, setRecentRefunds] = useState<RefundReport[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      loadDashboardData()
+    }
+  }, [isAuthenticated, token])
+
+  const loadDashboardData = async () => {
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      const [summary, refunds] = await Promise.all([
+        getDashboardSummaryRequest(token),
+        getRefundsReportRequest(token)
+      ])
+
+      setDashboardData(summary)
+      setRecentRefunds(refunds.slice(0, 3)) // Pega os 3 mais recentes
+      setLoading(false)
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao carregar dashboard' })
+      setLoading(false)
+    }
+  }
 
   const handleNavigateToReports = () => {
     navigate("/reembolsos", true)
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      return `Hoje, ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    } else if (diffDays === 1) {
+      return `Ontem, ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    } else if (diffDays < 7) {
+      return `${diffDays} dias atrás`
+    } else {
+      return date.toLocaleDateString('pt-BR')
+    }
+  }
+
+  const getStatusConfig = (status: string) => {
+    const configs = {
+      PENDING: { label: 'Pendente', class: 'text-yellow-400 bg-yellow-500/15' },
+      APPROVED: { label: 'Aprovado', class: 'text-green-400 bg-green-500/15' },
+      REJECTED: { label: 'Rejeitado', class: 'text-red-400 bg-red-500/15' }
+    }
+    return configs[status as keyof typeof configs] || configs.PENDING
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-400">Carregando dashboard...</p>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -33,51 +111,66 @@ export default function Dashboard() {
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[{
-          title: "Receita Total",
-          icon: DollarSign,
-          value: "R$ 45.231,89",
-          delta: "+20.1% do mês passado",
-          deltaIcon: ArrowUp,
-          deltaClass: "text-green-400",
-        }, {
-          title: "Reembolsos Pendentes",
-          icon: Receipt,
-          value: "R$ 3.240,50",
-          delta: "8 solicitações",
-          deltaIcon: null,
-          deltaClass: "text-yellow-400",
-        }, {
-          title: "Funcionários Ativos",
-          icon: Users,
-          value: "24",
-          delta: "+2 este mês",
-          deltaIcon: ArrowUp,
-          deltaClass: "text-green-400",
-        }, {
-          title: "Produtos em Estoque",
-          icon: Package,
-          value: "1.234",
-          delta: "32 com estoque baixo",
-          deltaIcon: ArrowDown,
-          deltaClass: "text-red-400",
-        }].map((kpi, i) => (
-          <Card key={i} className="border-gray-800 bg-black">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-300">{kpi.title}</CardTitle>
-                <kpi.icon className="h-4 w-4 text-orange-500" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-semibold text-white">{kpi.value}</div>
-              <p className={`mt-1 flex items-center text-xs ${kpi.deltaClass}`}>
-                {kpi.deltaIcon ? <kpi.deltaIcon className="mr-1 h-3 w-3" /> : null}
-                {kpi.delta}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card className="border-gray-800 bg-black">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-300">Total de Reembolsos</CardTitle>
+              <Receipt className="h-4 w-4 text-orange-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-white">{dashboardData?.refunds.totalRefunds || 0}</div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              {formatCurrency(dashboardData?.refunds.totalAmount || 0)} total
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-800 bg-black">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-300">Reembolsos Pendentes</CardTitle>
+              <Receipt className="h-4 w-4 text-yellow-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-white">{dashboardData?.refunds.byStatus.pending || 0}</div>
+            <p className="mt-1 flex items-center text-xs text-yellow-400">
+              Aguardando aprovação
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-800 bg-black">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-300">Usuários Ativos</CardTitle>
+              <Users className="h-4 w-4 text-orange-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-white">{dashboardData?.users.activeUsers || 0}</div>
+            <p className="mt-1 flex items-center text-xs text-gray-400">
+              de {dashboardData?.users.totalUsers || 0} total
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-gray-800 bg-black">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-300">Clientes Cadastrados</CardTitle>
+              <Package className="h-4 w-4 text-orange-500" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-white">{dashboardData?.clients.totalClients || 0}</div>
+            <p className="mt-1 flex items-center text-xs text-green-400">
+              <ArrowUp className="mr-1 h-3 w-3" />
+              Cadastros ativos
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Seções */}
@@ -87,22 +180,29 @@ export default function Dashboard() {
             <CardTitle className="text-white">Reembolsos Recentes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              { nome: "João Silva - Combustível", quando: "Hoje, 14:30", valor: "R$ 120,00", status: "Pendente", classe: "text-yellow-400 bg-yellow-500/15" },
-              { nome: "Maria Santos - Almoço Cliente", quando: "Ontem, 16:45", valor: "R$ 85,50", status: "Aprovado", classe: "text-green-400 bg-green-500/15" },
-              { nome: "Pedro Costa - Material Escritório", quando: "2 dias atrás", valor: "R$ 245,30", status: "Pendente", classe: "text-yellow-400 bg-yellow-500/15" },
-            ].map((r, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg bg-gray-950 p-3">
-                <div>
-                  <p className="font-medium text-white">{r.nome}</p>
-                  <p className="text-xs text-gray-500">{r.quando}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-white">{r.valor}</p>
-                  <span className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${r.classe}`}>{r.status}</span>
-                </div>
+            {recentRefunds.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500 text-sm">Nenhum reembolso encontrado</p>
               </div>
-            ))}
+            ) : (
+              recentRefunds.map((refund) => {
+                const statusConfig = getStatusConfig(refund.status)
+                return (
+                  <div key={refund.id} className="flex items-center justify-between rounded-lg bg-gray-950 p-3">
+                    <div>
+                      <p className="font-medium text-white">{refund.description}</p>
+                      <p className="text-xs text-gray-500">{formatDate(refund.createdAt)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-white">{formatCurrency(refund.amount)}</p>
+                      <span className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${statusConfig.class}`}>
+                        {statusConfig.label}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
 

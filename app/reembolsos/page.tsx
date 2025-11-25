@@ -1,25 +1,111 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Filter } from 'lucide-react'
+import { Plus, Search, Filter, Check, X, Eye } from 'lucide-react'
 import { PageHeader } from "@/components/page-header"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { StatusBadge } from "@/components/status-badge"
 import { useAppContext } from "@/app/context/AppContext"
+import { useSPANavigation } from "@/hooks/use-spa-navigation"
+import { getRefundsRequest, updateRefundRequest } from "@/lib/api"
+import { Refund } from "@/lib/types/refund"
 
 export default function ReembolsosPage() {
-  const { addNotification } = useAppContext()
+  const { addNotification, userInfo } = useAppContext()
+  const { navigate } = useSPANavigation()
+  const [refunds, setRefunds] = useState<Refund[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [activeTab, setActiveTab] = useState("todas")
 
-  const handleNotificationTest = () => {
-    addNotification({
-      type: "success",
-      message: "Notificação de teste criada com sucesso!"
-    })
+  useEffect(() => {
+    loadRefunds()
+  }, [])
+
+  const loadRefunds = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      const data = await getRefundsRequest(token)
+      setRefunds(data)
+      setLoading(false)
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao carregar reembolsos' })
+      setLoading(false)
+    }
+  }
+
+  const handleUpdateStatus = async (refundId: string, status: 'APPROVED' | 'REJECTED') => {
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        navigate('/login', true)
+        return
+      }
+
+      await updateRefundRequest(token, refundId, { status })
+      addNotification({ 
+        type: 'success', 
+        message: `Reembolso ${status === 'APPROVED' ? 'aprovado' : 'rejeitado'} com sucesso!` 
+      })
+      loadRefunds()
+    } catch (error: any) {
+      addNotification({ type: 'error', message: error.message || 'Erro ao atualizar reembolso' })
+    }
+  }
+
+  const filteredRefunds = refunds.filter(refund => {
+    const matchesSearch = 
+      refund.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (refund.user?.name && refund.user.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    const matchesTab = 
+      activeTab === "todas" ||
+      (activeTab === "pendentes" && refund.status === "PENDING") ||
+      (activeTab === "aprovadas" && refund.status === "APPROVED") ||
+      (activeTab === "rejeitadas" && refund.status === "REJECTED")
+
+    return matchesSearch && matchesTab
+  })
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR')
+  }
+
+  const getStatusLabel = (status: string) => {
+    const labels = {
+      PENDING: 'Pendente',
+      APPROVED: 'Aprovado',
+      REJECTED: 'Rejeitado'
+    }
+    return labels[status as keyof typeof labels] || status
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-400">Carregando reembolsos...</p>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -30,9 +116,6 @@ export default function ReembolsosPage() {
         breadcrumbs={[{ label: "Início", href: "/" }, { label: "Reembolsos" }]}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleNotificationTest}>
-              Testar Notificação
-            </Button>
             <Button className="bg-orange-500 hover:bg-orange-600" asChild>
               <Link href="/reembolsos/novo">
                 <Plus className="mr-2 h-4 w-4" />
@@ -49,46 +132,40 @@ export default function ReembolsosPage() {
             <div className="flex w-full flex-1 items-center gap-2 rounded-md border border-gray-800 bg-gray-950 px-2 py-1">
               <Search className="h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Buscar por funcionário, categoria ou descrição..."
+                placeholder="Buscar por funcionário ou descrição..."
                 className="h-8 border-0 bg-transparent text-sm placeholder:text-gray-500 focus-visible:ring-0"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="border-gray-800 text-gray-300 hover:bg-gray-950">
-                <Filter className="mr-2 h-4 w-4" />
-                Filtros
-              </Button>
             </div>
           </div>
 
           <div className="mt-4">
-            <Tabs defaultValue="todas">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-4 bg-gray-950">
                 {[
-                  { v: "todas", l: "Todas" },
-                  { v: "pendentes", l: "Pendentes" },
-                  { v: "aprovadas", l: "Aprovadas" },
-                  { v: "rejeitadas", l: "Rejeitadas" },
+                  { v: "todas", l: "Todas", count: refunds.length },
+                  { v: "pendentes", l: "Pendentes", count: refunds.filter(r => r.status === "PENDING").length },
+                  { v: "aprovadas", l: "Aprovadas", count: refunds.filter(r => r.status === "APPROVED").length },
+                  { v: "rejeitadas", l: "Rejeitadas", count: refunds.filter(r => r.status === "REJECTED").length },
                 ].map((t) => (
                   <TabsTrigger
                     key={t.v}
                     value={t.v}
                     className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                   >
-                    {t.l}
+                    {t.l} ({t.count})
                   </TabsTrigger>
                 ))}
               </TabsList>
 
-              <TabsContent value="todas" className="mt-4">
+              <TabsContent value={activeTab} className="mt-4">
                 <div className="rounded-lg border border-gray-800">
                   <div className="max-h-[480px] overflow-auto">
                     <Table>
                       <TableHeader className="sticky top-0 z-10 bg-black">
                         <TableRow className="border-gray-800">
-                          <TableHead className="text-gray-300">ID</TableHead>
                           <TableHead className="text-gray-300">Funcionário</TableHead>
-                          <TableHead className="text-gray-300">Categoria</TableHead>
                           <TableHead className="text-gray-300">Descrição</TableHead>
                           <TableHead className="text-gray-300">Valor</TableHead>
                           <TableHead className="text-gray-300">Data</TableHead>
@@ -97,59 +174,70 @@ export default function ReembolsosPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { id: "R001", nome: "João Silva", cat: "Combustível", desc: "Viagem cliente ABC", valor: "R$ 120,00", data: "10/06/2025", status: "Pendente" },
-                          { id: "R002", nome: "Maria Santos", cat: "Alimentação", desc: "Almoço com cliente XYZ", valor: "R$ 85,50", data: "09/06/2025", status: "Aprovado" },
-                          { id: "R003", nome: "Pedro Costa", cat: "Material", desc: "Materiais de escritório", valor: "R$ 245,30", data: "08/06/2025", status: "Pendente" },
-                          { id: "R004", nome: "Ana Oliveira", cat: "Transporte", desc: "Uber para reunião", valor: "R$ 32,50", data: "07/06/2025", status: "Rejeitado" },
-                          { id: "R005", nome: "Carlos Mendes", cat: "Hospedagem", desc: "Hotel viagem negócios", valor: "R$ 450,00", data: "06/06/2025", status: "Aprovado" },
-                        ].map((r, idx) => (
-                          <TableRow
-                            key={r.id}
-                            className={`border-gray-800 hover:bg-gray-950 ${idx % 2 === 0 ? "bg-black" : "bg-gray-950/60"}`}
-                          >
-                            <TableCell className="font-mono text-white">#{r.id}</TableCell>
-                            <TableCell className="text-white">{r.nome}</TableCell>
-                            <TableCell className="text-white">{r.cat}</TableCell>
-                            <TableCell className="text-white">{r.desc}</TableCell>
-                            <TableCell className="text-white">{r.valor}</TableCell>
-                            <TableCell className="text-white">{r.data}</TableCell>
-                            <TableCell className="text-white">
-                              <StatusBadge status={r.status as any} />
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                {r.status === "Pendente" && (
-                                  <Button size="sm" className="bg-green-600 text-white hover:bg-green-700">
-                                    Aprovar
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-gray-800 text-gray-300 hover:bg-gray-950"
-                                >
-                                  Ver
-                                </Button>
-                              </div>
+                        {filteredRefunds.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                              {searchTerm ? 'Nenhum reembolso encontrado' : 'Nenhum reembolso cadastrado'}
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : (
+                          filteredRefunds.map((refund, idx) => (
+                            <TableRow
+                              key={refund.id}
+                              className={`border-gray-800 hover:bg-gray-950 ${idx % 2 === 0 ? "bg-black" : "bg-gray-950/60"}`}
+                            >
+                              <TableCell className="text-white">
+                                {refund.user?.name || 'Usuário não encontrado'}
+                              </TableCell>
+                              <TableCell className="text-white">{refund.description}</TableCell>
+                              <TableCell className="text-white font-medium">{formatCurrency(refund.amount)}</TableCell>
+                              <TableCell className="text-white">{formatDate(refund.createdAt)}</TableCell>
+                              <TableCell className="text-white">
+                                <StatusBadge status={getStatusLabel(refund.status) as any} />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  {refund.status === "PENDING" && (
+                                    <>
+                                      <Button 
+                                        size="sm" 
+                                        className="bg-green-600 text-white hover:bg-green-700"
+                                        onClick={() => handleUpdateStatus(refund.id, 'APPROVED')}
+                                      >
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Aprovar
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        className="bg-red-600 text-white hover:bg-red-700"
+                                        onClick={() => handleUpdateStatus(refund.id, 'REJECTED')}
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Rejeitar
+                                      </Button>
+                                    </>
+                                  )}
+                                  {refund.status !== "PENDING" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                                    >
+                                      <Eye className="h-3 w-3 mr-1" />
+                                      Ver
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
 
-                  {/* Paginação simples */}
                   <div className="flex items-center justify-between border-t border-gray-800 bg-black px-3 py-2 text-sm text-gray-400">
-                    <span>Mostrando 1–5 de 28</span>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="border-gray-800 text-gray-300 hover:bg-gray-950">
-                        Anterior
-                      </Button>
-                      <Button variant="outline" size="sm" className="border-gray-800 text-gray-300 hover:bg-gray-950">
-                        Próximo
-                      </Button>
-                    </div>
+                    <span>Total: {filteredRefunds.length} reembolso(s)</span>
                   </div>
                 </div>
               </TabsContent>
